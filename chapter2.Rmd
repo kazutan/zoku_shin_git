@@ -1,0 +1,446 @@
+---
+title: "第2章 分布間の関係と非心分布への拡張"
+author: "kazutan"
+date: "2015年02月25日"
+output: html_document
+---
+## このドキュメントについて
+このドキュメントは、[『続・心理統計学の基礎』（南風原朝和 著）読書会](http://www.urano-ken.com/blog/2015/01/23/dokushokai/)について作成した第2章のメモという位置づけです。主にRで簡単に実行できるコードを中心に構成しています。ただこのドキュメントのみでは意味が通らないかと思いますので、[続・心理統計学の基礎](http://www.yuhikaku.co.jp/books/detail/9784641220416)と共にご覧ください。
+
+## 1. 2項分布と正規分布
+
+### 2項分布
+各回の試行における成功確率がπであるような試行を、独立にN解繰り返したときの成功数ωの確率を与える分布
+$$
+\begin{eqnarray}
+f(\omega) &=& {}_N C_\omega \pi^\omega(1-\pi)^{N-\omega} \\
+          &=& \frac{N!}{\omega!(N-\omega)!}\pi^\omega(1-\pi)^{N-\omega} \\
+\end{eqnarray}
+$$
+1行目から2行目への変換は${}_n C_\omega$を開いたもの。
+
+#### 具体例
+U先生がお昼にラーメンを食べる確率を$\pi=2/7$とする。このとき、U先生が一週間($N=7$)でラーメンを3回($\omega=3$)食べる確率($f(3)$)を求めると…
+$$
+\begin{eqnarray}
+f(3) &=& \frac{7!}{3!4!} \left(\frac{2}{7}\right)^3 \left(1-\frac{2}{7}\right)^{7-3} \\
+&=& 35 \times \frac{2^3 \times 5^4}{7^7} \\
+&=&0.2125
+\end{eqnarray}
+$$
+これをRでやるとこうなります:
+```{r}
+dbinom(3, size=7, prob=2/7)
+```
+なお、全ての場合(1回〜7回)の各確率を求めるとこうなります:
+```{r}
+omg <- 1:7
+p.omg <- dbinom(omg,size=7,prob=2/7)
+p.omg
+```
+
+### 2項分布と正規分布の関係
+先ほどのU先生2項分布を図示してみましょう。
+```{r}
+plot(p.omg,type="h")
+```
+
+なんか正規分布っぽく見えます。でもバーの本数が少ないので微妙です。ならば一週間ではなく1ヶ月として考えてみましょう。
+1ヶ月は30日とします。となると以下のようなコードとなります:
+```{r}
+omg.month <- 1:30
+p.omg.month <- dbinom(omg.month,size=30,prob=2/7)
+plot(p.omg.month,type="h")
+```
+
+もうついでに1年もやります:
+```{r}
+omg.year <- 1:365
+p.omg.year <- dbinom(omg.year,size=365,prob=2/7)
+plot(p.omg.year,type="h")
+```
+
+ここまでくれば一目瞭然ですね。ためしに正規分布を重ねてみます:
+```{r}
+bi.mean <- 365*2/7
+bi.var <- 365*2/7*5/7
+plot(p.omg.year,type="h",col="lightblue")
+curve(dnorm(x,mean=bi.mean,sd=sqrt(bi.var)),add=TRUE)
+```
+
+はい、このようにほぼフィットします。つまり**N(試行回数)が多くなれば二項分布は正規分布に近づく**のです。このように、離散分布と連続分布の違いはあっても関連性があるのです。
+
+## 2. 正規分布とカイ二乗分布
+
+### 標準正規分布とカイ二乗分布の関係
+よくノンパラの検定で出てくるカイ二乗分布ですが、これは連続変数の分布でしかも正規分布から派生します。ではまず確率変数$y$が平均$\mu$、分散$\sigma^2$の正規分布$N(\mu,\sigma^2)$に従うとしましょう。この$y$を標準化したもの($z$)は…
+$$
+z=\frac{y-\mu}{\sigma}
+$$
+となり、平均0、分散1の標準正規分布となります。一応図にしましょう。平均を5,分散を4とする正規分布と標準正規分布を重ねます。
+```{r}
+curve(dnorm(x,mean=5,sd=sqrt(4)),xlim=c(-10,10),ylim=c(0,0.5),col="red")
+curve(dnorm(x),col="blue",add=TRUE)
+```
+
+さてこの標準正規分布$z$ですが、この各値を二乗したものはこのような式となります:
+$$
+z^2=\left(\frac{y-\mu}{\sigma}\right)^2
+$$
+この$z^2$が、実は自由度1のカイ二乗分布に従います。ちょっとシミュレーションしてみます。標準正規分布に従う乱数を50000回発生させ、それを二乗したものをヒストグラムで描きます:
+```{r}
+z2 <- (rnorm(50000))^2
+hist(z2,breaks=300,xlim=c(0,5))
+```
+
+次に自由度1のカイ二乗分布を描きます:
+```{r}
+curve(dchisq(x,df=1),xlim=c(0,5))
+```
+
+はい、ほぼ一致します。つまり**標準正規分布を二乗したら自由度1のカイ二乗分布**という関係性があります。
+
+### カイ二乗変数の和の分布
+
+ではここで、この$y=z^2$を独立にサンプリングした変数$y_1, y_2$を準備したとします。これを足した変数の分布はどうなるでしょう。
+
+```{r}
+z2.df2 <- (rnorm(50000))^2 + (rnorm(50000))^2
+hist(z2.df2,breaks=300,xlim=c(0,5),col="pink")
+```
+
+このようになります。これが自由度2のカイ二乗分布です。では自由度2のカイ二乗分布を描いてみると…
+```{r}
+curve(dchisq(x,df=2),xlim=c(0,5))
+```
+
+ほぼ形状が一致します。では3つ足すと…
+```{r}
+z2.df3 <- (rnorm(50000))^2 + (rnorm(50000))^2 + (rnorm(50000))^2
+hist(z2.df3,breaks=300,xlim=c(0,5),col="lightgreen")
+```
+
+以下いくつかのバターンを重ねてみます:
+```{r}
+z2.df4 <- (rnorm(50000))^2 + (rnorm(50000))^2 + (rnorm(50000))^2 + (rnorm(50000))^2
+hist(z2,breaks=300,xlim=c(0,5),ylim=c(0,6000),col="lightblue")
+hist(z2.df2,breaks=300,xlim=c(0,5),col="pink",add=TRUE)
+hist(z2.df3,breaks=300,xlim=c(0,5),col="lightgreen",add=TRUE)
+hist(z2.df4,breaks=300,xlim=c(0,5),col="lightyellow",add=TRUE)
+```
+
+ついでにそれぞれの自由度のカイ二乗分布も描いてみます:
+```{r}
+curve(dchisq(x,df=1),xlim=c(0,5),col="blue")
+curve(dchisq(x,df=2),xlim=c(0,5),col="red",add=TRUE)
+curve(dchisq(x,df=3),xlim=c(0,5),col="green",add=TRUE)
+curve(dchisq(x,df=4),xlim=c(0,5),col="yellow",add=TRUE)
+```
+
+これをNだけ繰り返したとすると、以下の式になります:
+$$
+\begin{eqnarray}
+V &=& \left(\frac{y_1-\mu}{\sigma}\right)^2 + \left(\frac{y_2-\mu}{\sigma}\right)^2 + \cdots + \left(\frac{y_N-\mu}{\sigma}\right)^2 \\
+&=& \sum^N_{i=1}\left(\frac{y_i-\mu}{\sigma}\right)^2
+\end{eqnarray}
+$$
+これが、自由度Nのカイ二乗分布となります。
+
+### 平方和の分布
+詳細は省略しますが、テキストp.20の数式をもう少しゆっくりやるとこうなります:
+$$
+\begin{eqnarray}
+V &=& \sum^N_{i=1}\left(\frac{y_i-\mu}{\sigma}\right)^2 \\
+&=& \sum^N_{i=1}\left(\frac{(y_i-\bar{y})+(\bar{y}-\mu)}{\sigma}\right)^2 \\
+&=& \sum^N_{i=1}\frac{\{(y_i-\bar{y})+(\bar{y}-\mu)\}^2}{\sigma^2} \\
+&=& \sum^N_{i=1}\frac{(y_i-\bar{y})^2+2(y_i-\bar{y})(\bar{y}-\mu)+(\bar{y}-\mu)^2}{\sigma^2} \\
+&=& \sum^N_{i=1}\left(\frac{y_i-\bar{y}}{\sigma}\right)^2 + \sum^N_{i=1}\frac{2(y_i-\bar{y})(\bar{y}-\mu)}{\sigma^2} + \sum^N_{i=1}\left(\frac{\bar{y}-\mu}{\sigma}\right)^2　\\
+\end{eqnarray}
+$$
+
+このとき、$\bar{y},\mu,\sigma$は定数であるため、第2項ではこれらをシグマの左へ持ってこれる
+
+$$
+\begin{eqnarray}
+&=& \sum^N_{i=1}\left(\frac{y_i-\bar{y}}{\sigma}\right)^2 + \frac{2(\bar{y}-\mu)}{\sigma^2}\sum^N_{i=1}(y_i-\bar{y}) + \sum^N_{i=1}\left(\frac{\bar{y}-\mu}{\sigma}\right)^2　\\
+\end{eqnarray}
+$$
+
+この第２項の$\sum^N_(i=1)(y_i-\bar{y})$は0になるので、第２項は無視可能。第３項は$i$に関するものがないのでN個すべて同一のもの。したがって以下のようになる：
+
+$$
+\begin{eqnarray}
+&=& \sum^N_{i=1}\left(\frac{y_i-\bar{y}}{\sigma}\right)^2+N\left(\frac{\bar{y}-\mu}{\sigma}\right)^2 \\
+\end{eqnarray}
+$$
+
+第１項の$\sigma$は定数なのでシグマの外に出せる($\sigma^2$として)。そして第２項のNをルートしてカッコ内へ
+
+$$
+\begin{eqnarray}
+&=& \frac{1}{\sigma^2}\sum^N_{i=1}\left(y_i-\bar{y}\right)+\left(\frac{(\bar{y}-\mu)\sqrt{N}}{\sigma}\right)^2 \\
+&=& \frac{SS_y}{\sigma}+\left(\frac{\bar{y}-\mu}{\sigma/\sqrt{N}}\right)^2 \\
+\end{eqnarray}
+$$
+
+もともとの$V$は自由度Nのカイ二乗分布で、導出したものの第２項は標準正規分布を二乗したものです。てことは残りの第１項は…そう、N-1のカイ二乗分布に従うよねってお話です。例の「N-1が自由度」はこのあたりと関連しています、というお話です。
+
+## 3. カイ二乗分布とF分布とt分布
+
+### 平方和の比の分布
+省略します。要するに**平方和を自由度で割った「平方平均」の比がF分布に従う**こととなる、です。
+
+### 分子の自由度が1のとき
+このとき、以下の式になります:
+$$
+\begin{eqnarray}
+F=\frac{\chi^2_1}{\chi^2_2/df_2} \\
+\end{eqnarray}
+$$
+
+ここで、上の$\chi^2$というのは、標準正規分布$z$の二乗したものでした。なので以下のようになります：
+
+$$
+\begin{eqnarray}
+F &=&\frac{z^2_1}{\chi^2_2/df_2} \\
+&=& \left(\frac{z}{\sqrt{\chi^2_2/df_2}}\right)^2 \\
+\end{eqnarray}
+$$
+
+このカッコ内のが$t$分布に従います。つまり**分子の自由度が１のF分布はｔ分布の二乗**になります。これは1要因2水準の分散分析と対応のないｔ検定の結果が一致する理由でもあります。
+
+### t分布にしたがう変数の例
+詳細は省略します。ポイントは式(2.11)で、分子のzに式(2.12)を代入し、分母は式(2.7)から流用したものが式(2.13)となります。信頼区間についてはあとでシミュレーションします。
+
+### t分布と標準正規分布
+ではt分布を描きましょう
+```{r}
+curve(dt(x,df=1),xlim=c(-5,5))
+```
+
+これが自由度１のt分布です。
+それでは自由度をいろいろ変えて重ね書きします。あと正規分布も重ねてみます。
+```{r}
+curve(dt(x,df=1),xlim=c(-5,5),ylim=c(0,0.5),col="#ff0000")
+curve(dt(x,df=2),col="#ff0033",add=TRUE)
+curve(dt(x,df=4),col="#ff0066",add=TRUE)
+curve(dt(x,df=8),col="#ff0099",add=TRUE)
+curve(dt(x,df=16),col="#ff00cc",add=TRUE)
+curve(dt(x,df=128),col="#ff00ff",add=TRUE)
+curve(dnorm(x),col="#0000ff",add=TRUE)
+```
+
+t分布は左右対称でピークが0になります。自由度をあげていくとどんどん尖っていき、青色の正規分布に近づいていくのがわかるかと思います。
+
+### ここまでのまとめ
+図を見てください。ここまで取り上げた分布は全て結びついている、それでOK。
+
+## 4. 2項分布と多項分布とカイ二乗分布
+
+### 2項分布から多項分布への拡張
+まず、2項分布の式はこちらです:
+$$
+\begin{eqnarray}
+f(\omega) &=& \frac{N!}{\omega!(N-\omega)!}\pi^\omega(1-\pi)^{N-\omega} \\
+\end{eqnarray}
+$$
+
+この式では、U先生が昼食にラーメンを食べる確率を$\pi$とし、ラーメンを食べない確率を$(1-\pi)$としております。また一週間にラーメンを食べた回数を$\omega$、食べなかった回数を$(N-\omega)$としております。これを余事象ではなく、ラーメンを食べる確率を$\pi_1$、ラーメンを食べない確率を$\pi_2$というように表現し、$(\pi_1 + \pi_2)=1$としてみましょう。すると以下のようになります:
+
+$$
+\begin{eqnarray}
+f(\omega_1,\omega_2) &=& \frac{N!}{\omega_1!\omega_2!}\pi_1^{\omega_1}\pi_2^{\omega_2} \\
+\end{eqnarray}
+$$
+
+さて、ここでU先生の昼食パターンを[精査](https://instagram.com/uranoken/)し、ラーメンの確率$\pi_1=2/7$、カレー類の確率$\pi_2=1/7$、その他$\pi_3=4/7$としたとします。この時、上の式を拡張して以下のように表現できます:
+
+$$
+\begin{eqnarray}
+f(\omega_1,\omega_2,\omega_3) &=& \frac{N!}{\omega_1!\omega_2!\omega_3!}\pi_1^{\omega_1}\pi_2^{\omega_2}\pi_3^{\omega_3} \\
+\end{eqnarray}
+$$
+
+つまり1つ分追加されます。このように選択肢(項)が追加されていくにしたがって、以下どんどん増えていきます。それが式(2.18)です。
+
+### 多項分布に関する帰無仮説のカイ二乗検定
+詳細は省略しますが、一番重要なポイントは式(2.24)です。この式の内容が各カテゴリで期待値からずれている程度を示しています。
+
+
+### ここまでのまとめ+α
+省略します。
+
+## 5. 非心t分布
+
+### 通常のt分布と非心t分布
+ようするに、通常のt検定で算出するt統計量は、帰無仮説$H_0:\mu=\mu_0$のもとで以下の式で算出します:
+$$
+\begin{eqnarray}
+t=\frac{\bar{y}-\mu_0}{s'/\sqrt{N}} \\
+\end{eqnarray}
+$$
+
+この式には、前提として帰無仮説の仮定があります。つまり真の母平均$\mu$と仮説値$\mu_0$の**差は0**となるはずです。それを前提とした検定統計量tなのです。では**帰無仮説が偽**であるなら、この真の母平均$\mu$と仮説値$\mu_0$の差は0にならず、以下のようになります:
+$$
+\begin{eqnarray}
+\mu_{z'} = \frac{\mu-\mu_0}{\sigma/\sqrt{N}}\\
+\end{eqnarray}
+$$
+
+つまりこの$\mu_{z'}$だけ中心から歪んでくる(心を外してる)ことになります。でも分散は1です。そこでこの$\mu_{z'}$を$\lambda$(非心度)と呼ぶことにして、以下の統計量を作ります:
+$$
+\begin{eqnarray}
+t = \frac{z'}{\sqrt{\chi_2^2/df_2}} \\
+\end{eqnarray}
+$$
+
+このtは通常のt分布ではなく、**非心t分布**と呼ばれる分布に従います。つまり、**帰無仮設が偽であるならば非心t分布である**ということです。ちなみにこの非心度$\lambda$は以下のように変形できます:
+$$
+\begin{eqnarray}
+\lambda &=& \mu_{z'} \\
+&=& \frac{\mu-\mu_0}{\sigma/\sqrt{N}} \\
+&=& \frac{\mu-\mu_0}{\sigma}×\sqrt{N} \\
+\end{eqnarray}
+$$
+
+この形はこの後重要になりますのでおさえておいてください。なお非心度$\lambda=0$というのは帰無仮説が真の状態、すなわち通常のt分布となります。
+
+### 非心t分布の例
+いろんな非心度のt分布をグラフにしてみましょう。
+```{r}
+curve(dt(x,df=24,ncp=0),xlim=c(-3,10),ylim=c(0,0.5),col="#ff0000")
+curve(dt(x,df=24,ncp=1),col="#ff3300",add=TRUE)
+curve(dt(x,df=24,ncp=2),col="#ff6600",add=TRUE)
+curve(dt(x,df=24,ncp=3),col="#ff9900",add=TRUE)
+curve(dt(x,df=24,ncp=4),col="#ffaa00",add=TRUE)
+curve(dt(x,df=24,ncp=6),col="#ffdd00",add=TRUE)
+curve(dt(x,df=24,ncp=8),col="#ffff00",add=TRUE)
+abline(v=0,col="#ff0000",lwd=1)
+```
+
+このように、非心度が高くなるほど右へ歪んでいきます。ついでに非心度を固定して自由度を変化させてみます:
+```{r}
+curve(dt(x,df=8,ncp=4),xlim=c(-3,10),ylim=c(0,0.5),col="#0000ff")
+curve(dt(x,df=16,ncp=4),col="#3300ff",add=TRUE)
+curve(dt(x,df=24,ncp=4),col="#6600ff",add=TRUE)
+curve(dt(x,df=32,ncp=4),col="#9900ff",add=TRUE)
+curve(dt(x,df=40,ncp=4),col="#aa00ff",add=TRUE)
+curve(dt(x,df=48,ncp=4),col="#dd00ff",add=TRUE)
+curve(dt(x,df=56,ncp=4),col="#ff00ff",add=TRUE)
+abline(v=4,col="#ff00ff",lwd=1)
+```
+
+非心度を4に固定して自由度を増やしていくと、次第に左右対称に近づいていきました。サンプルサイズが多くなればってやつですね。
+
+### 非心度と効果量
+非心度の式をもう一度確認します:
+$$
+\begin{eqnarray}
+\lambda &=& \frac{\mu-\mu_0}{\sigma}×\sqrt{N} \\
+\end{eqnarray}
+$$
+
+この右辺の左側の項について、
+$$
+\begin{eqnarray}
+\delta_0 = \frac{\mu-\mu_0}{\sigma} \\
+\end{eqnarray}
+$$
+
+とした$\delta_0$について考えます。これは真の平均値から仮説値を引いた差得点を標準偏差で割ってます。これを**標準化平均値差**といい、これを使って非心度を表現すると以下のようになります:
+
+$$
+\begin{eqnarray}
+\lambda &=& \delta_0×\sqrt{N}
+\end{eqnarray}
+$$
+
+この標準化平均値差$\delta_0$を**効果量**と一般に呼び、$非心度=母集団における効果量×標本の大きさ$という形になっているのです。
+
+### 非心度と検定力
+検定統計量tの式について考えます:
+$$
+\begin{eqnarray}
+t &=& \frac{\bar{y}-\mu_0}{s'\sqrt{N}} \\
+&=& \frac{\bar{y}-\mu_0}{s'}×\sqrt{N} \\
+\end{eqnarray}
+$$
+
+これより、$検定統計量=標本における効果量×標本の大きさ$という形で構成されています。このあたりについて、少し細かく説明します。
+
+まず、帰無仮説で設定しているのは「仮説値$\mu_0$が母集団の平均値$\mu$と差がない」というものです。もうひとつ平均値に関する値としては、標本から算出した標本平均値$\bar{y}$です。これら3つは違う意味を持っていますので混合しないようにしてください。
+
+この標本平均値と仮説値との差で算出する検定統計量tが、帰無仮説を前提としたt分布($\lambda=0$)で棄却域にあるかどうか判断します。これがt検定です。いわゆるp値というのはこの帰無仮説を前提としたt分布($\lambda=0$)での端っこぐあいを指します。
+
+でも、実際のところ「真なる母集団の値がどこかにあり、それは非心t分布にしたがう」のですから、結局のところ非心度を求めて非心t分布を出します。この分布がt分布の棄却域にどのくらい入っているか、これが有意になる確率(検定力)となります。
+
+### 非心t分布を用いた検定力計算の例
+まずは図示しましょう。テキストと同一のものとします。
+```{r}
+curve(dt(x,df=24,ncp=0),xlim=c(-5,10),ylim=c(0,0.5),col="#ff0000")
+curve(dt(x,df=24,ncp=2.5),col="#0000ff",add=TRUE)
+abline(v=qt(.975,df=24),col="#333333",lwd=1.5)
+abline(v=qt(.025,df=24),col="#333333",lwd=1.5)
+```
+
+この垂直線の外側が該当します。左の垂直線より左側で、非心t分布(青色)の累積確率は…
+```{r}
+pt(qt(.025,df=24),df=24,ncp=2.5)
+```
+
+ほぼ0です。では右の垂直線より右側での、非心t分布(青色)の累積確率は…
+```{r}
+1-pt(qt(.975,df=24),df=24,ncp=2.5)
+```
+
+あわせておよそ67%といったところでしょう。これが検定力です。なお検定力をRで算出するパッケージとして{pwr}が紹介されています。試しにこの例で実行するとこのようになります:
+```{r}
+require(pwr)
+pwr.t.test(n=25,d=0.5,sig.level=0.05,type="one.sample")
+```
+
+## 6. 非心カイ二乗分布と非心F分布
+
+### 非心カイ二乗分布
+イメージは非心t分布と一緒です。一気に作図しましょう:
+```{r}
+curve(dchisq(x,df=1,ncp=0),xlim=c(0,10),col="red")
+curve(dchisq(x,df=1,ncp=6.25),col="blue",add=TRUE)
+```
+
+あまり本質的ではないので、ここではこの程度で切り上げます。
+
+### 非心カイ二乗分布を用いた検定力計算の例
+では計算します。テキストにあわせて自由度1、非心度6.25とします:
+```{r}
+1-pchisq(qchisq(.95,df=1),df=1,ncp=6.25)
+```
+
+また、{pwr}パッケージでも実行してみます:
+```{r}
+require(pwr)
+pwr.chisq.test(w=0.5,N=25,df=1,sig.level=0.05)
+```
+
+無事に一致しました。
+
+### 非心F分布
+導出は通常のF分布と同様で、**分子の**変数が非心カイ二乗分布に従う時が非心F分布となります。この非心F分布の非心度は、分子の非心カイ二乗分布の非心度と同一となります。
+
+### 非心F分布を用いた検定力計算の例
+テキストの例で計算します。なおこの例は上述の非心t分布のものと一致するはずです。ではまず図示します:
+```{r}
+curve(df(x,df1=1,df2=24,ncp=0),xlim=c(0,10),col="red")
+curve(df(x,df1=1,df2=24,ncp=6.25),col="blue",add=TRUE)
+abline(v=qf(.95,df1=1,df2=24),col="#666666",lwd=1.5)
+```
+
+どこかで見た形ですね。そうでないと困ります。それでは検定力を算出します:
+```{r}
+1-pf(qf(.95,df1=1,df2=24),df1=1,df2=24,ncp=6.25)
+```
+
+無事に非心t分布の時の検定力と一致しました。なお{pwr}パッケージでもanovaの検定力を算出できるのですが、今回は省略します。
+
+以上で第2章は終了です。
+
